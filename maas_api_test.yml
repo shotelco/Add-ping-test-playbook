@@ -1,0 +1,35 @@
+---
+- name: Test MAAS API Authentication
+  hosts: localhost
+  connection: local # Run directly from the Semaphore container
+  gather_facts: false
+
+  vars:
+    # MAAS Connection Details - ** SECURITY NOTE BELOW **
+    maas_url: "http://69.69.90.4:5240/MAAS" # Your MAAS public URL
+    maas_api_key_full: "tsf9Y5H8Xv4VGAWg2s:Ch29sRDxz9R6aTf4fq:HPDejB5VHPJnnNRCmhgeuZsrGWXCfNYL" # Your full API Key
+
+    # Split the key into components (OAuth1 needs these parts)
+    maas_consumer_key: "{{ maas_api_key_full.split(':')[0] }}"
+    maas_token_key: "{{ maas_api_key_full.split(':')[1] }}"
+    maas_token_secret: "{{ maas_api_key_full.split(':')[2] }}"
+
+  tasks:
+    - name: Call MAAS whoami endpoint
+      ansible.builtin.uri:
+        url: "{{ maas_url }}/api/2.0/users/op-whoami"
+        method: GET
+        # OAuth 1.0a Parameters for MAAS
+        url_username: "{{ maas_consumer_key }}"      # Consumer Key
+        url_password: "{{ maas_token_key }}"         # Token Key (Resource Owner Key)
+        oauth1_token_secret: "{{ maas_token_secret }}" # Token Secret (Resource Owner Secret)
+        oauth1_consumer_secret: ""                   # MAAS user keys have no consumer secret
+        oauth1_signature_method: "HMAC-SHA1"
+        force_basic_auth: yes                        # Needed for requests-oauthlib with empty consumer secret
+        return_content: yes                          # Return the response body
+        status_code: 200                             # Expect HTTP 200 OK
+      register: maas_response
+
+    - name: Display MAAS response
+      ansible.builtin.debug:
+        var: maas_response.json # Display the JSON content returned by MAAS
